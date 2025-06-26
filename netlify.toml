@@ -1,0 +1,9 @@
+[build]
+  functions = "functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# AIの応答が遅い場合に備え、関数のタイムアウトを25秒に延長します。
+[functions."*"]
+  timeout = 25

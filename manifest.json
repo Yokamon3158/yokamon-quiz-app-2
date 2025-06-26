@@ -1,0 +1,21 @@
+{
+  "name": "東洋医学 AIクイズ",
+  "short_name": "東洋医学クイズ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#0d9488",
+  "description": "東洋医学概論の試験対策用AIクイズジェネレーター",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "yokamon-quiz-app-netlify",
+  "version": "1.0.0",
+  "description": "Netlify Function for Yokamon Quiz App",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}

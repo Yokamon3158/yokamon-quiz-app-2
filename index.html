@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0d9488">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <title>東洋医学概論Ⅳ試験対策 AIクイズジェネレーター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP', 'Inter', sans-serif; padding-bottom: 3rem; }
+        .quiz-option:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        .quiz-option.correct { background-color: #d1fae5 !important; border-color: #10b981 !important; }
+        .quiz-option.incorrect { background-color: #fee2e2 !important; border-color: #ef4444 !important; }
+        .quiz-option.disabled { pointer-events: none; opacity: 0.7; }
+        .modal-enter { animation: fadeIn 0.3s ease-out; }
+        .modal-leave { animation: fadeOut 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.95); } }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-3xl">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-teal-700">東洋医学概論Ⅳ試験対策 AIクイズ</h1>
+            <p class="mt-2 text-gray-600">AIがあなたのためのオリジナル問題を作成します</p>
+        </header>
+
+        <!-- 各種セクション（HTML構造は変更なし） -->
+        <section id="settings-section" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+            <h2 class="text-xl font-bold mb-4 border-b pb-2">クイズの設定</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700 mb-1">出題分野</label>
+                    <select id="category" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition">
+                        <option value="弁証方法・八綱弁証">弁証方法・八綱弁証</option>
+                        <option value="病因論">病因論</option>
+                        <option value="四診">四診</option>
+                        <option value="気血津液弁証">気血津液弁証</option>
+                        <option value="臓腑弁証">臓腑弁証</option>
+                        <option value="五臓の複合的な病証">五臓の複合的な病証</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="difficulty" class="block text-sm font-medium text-gray-700 mb-1">難易度</label>
+                    <select id="difficulty" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition">
+                        <option value="基礎">基礎</option>
+                        <option value="応用">応用</option>
+                        <option value="国家試験レベル">国家試験レベル</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="num-questions" class="block text-sm font-medium text-gray-700 mb-1">問題数</label>
+                    <input type="number" id="num-questions" value="5" min="1" max="10" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition">
+                </div>
+            </div>
+            <button id="generate-btn" class="mt-6 w-full bg-teal-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-transform transform hover:scale-105">クイズ作成スタート</button>
+        </section>
+        <section id="loading-section" class="hidden text-center p-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
+            <p class="mt-4 text-gray-600">AIが問題を生成中です。しばらくお待ちください...</p>
+        </section>
+        <section id="error-section" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
+            <p class="font-bold">エラーが発生しました</p>
+            <p id="error-message">問題の生成に失敗しました。設定を変更して再度お試しください。</p>
+        </section>
+        <section id="quiz-section" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                 <h2 id="progress-text" class="text-lg font-semibold text-gray-700"></h2>
+                 <p id="score-text" class="text-lg font-bold text-teal-600"></p>
+            </div>
+            <div id="question-container" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 relative"></div>
+            <div id="navigation-buttons" class="mt-6 text-center"></div>
+        </section>
+        <section id="results-section" class="hidden text-center bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+            <h2 class="text-2xl font-bold mb-4">クイズ結果</h2>
+            <p id="final-score" class="text-4xl font-bold text-teal-700 mb-2"></p>
+            <p id="final-message" class="text-lg text-gray-600 mb-6"></p>
+            <button id="restart-btn" class="bg-teal-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-transform transform hover:scale-105">もう一度挑戦する</button>
+        </section>
+    </div>
+    <div id="explanation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div id="modal-content" class="bg-white rounded-xl shadow-2xl p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-enter">
+            <h3 class="text-xl font-bold text-teal-800 mb-4 border-b-2 border-teal-200 pb-2">解説</h3>
+            <div id="explanation-content" class="space-y-6"></div>
+            <button id="close-modal-btn" class="mt-6 w-full bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition">閉じる</button>
+        </div>
+    </div>
+    <div id="dispute-response-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div id="dispute-modal-content" class="bg-white rounded-xl shadow-2xl p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-enter">
+            <h3 class="text-xl font-bold text-red-800 mb-4 border-b-2 border-red-200 pb-2">AIによる再判定</h3>
+            <div id="dispute-response-content" class="space-y-4"></div>
+            <button id="close-dispute-modal-btn" class="mt-6 w-full bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition">閉じる</button>
+        </div>
+    </div>
+    <footer class="fixed bottom-4 right-4 text-xs text-gray-400">&copy;2025 MSOM Yokamon</footer>
+
+    <script type="module">
+        // アプリケーションの状態を管理
+        const state = {
+            quizData: [],
+            currentQuestionIndex: 0,
+            score: 0,
+            isLoading: false,
+        };
+
+        const sections = {
+            settings: document.getElementById('settings-section'),
+            loading: document.getElementById('loading-section'),
+            quiz: document.getElementById('quiz-section'),
+            results: document.getElementById('results-section'),
+            error: document.getElementById('error-section'),
+        };
+        const elements = {
+            generateBtn: document.getElementById('generate-btn'),
+            restartBtn: document.getElementById('restart-btn'),
+            categorySelect: document.getElementById('category'),
+            difficultySelect: document.getElementById('difficulty'),
+            numQuestionsInput: document.getElementById('num-questions'),
+            progressText: document.getElementById('progress-text'),
+            scoreText: document.getElementById('score-text'),
+            questionContainer: document.getElementById('question-container'),
+            navigationButtons: document.getElementById('navigation-buttons'),
+            finalScore: document.getElementById('final-score'),
+            finalMessage: document.getElementById('final-message'),
+            errorMessage: document.getElementById('error-message'),
+            explanationModal: document.getElementById('explanation-modal'),
+            modalContent: document.getElementById('modal-content'),
+            explanationContent: document.getElementById('explanation-content'),
+            closeModalBtn: document.getElementById('close-modal-btn'),
+            disputeResponseModal: document.getElementById('dispute-response-modal'),
+            disputeModalContent: document.getElementById('dispute-modal-content'),
+            disputeResponseContent: document.getElementById('dispute-response-content'),
+            closeDisputeModalBtn: document.getElementById('close-dispute-modal-btn'),
+        };
+
+        // イベントリスナーの設定
+        elements.generateBtn.addEventListener('click', generateQuiz);
+        elements.restartBtn.addEventListener('click', restartQuiz);
+        elements.closeModalBtn.addEventListener('click', closeExplanationModal);
+        elements.closeDisputeModalBtn.addEventListener('click', closeDisputeResponseModal);
+        elements.explanationModal.addEventListener('click', (e) => (e.target === elements.explanationModal) && closeExplanationModal());
+        elements.disputeResponseModal.addEventListener('click', (e) => (e.target === elements.disputeResponseModal) && closeDisputeResponseModal());
+
+        // セクション表示を切り替えるヘルパー関数
+        function showSection(sectionName) {
+            Object.values(sections).forEach(section => section.classList.add('hidden'));
+            if (sections[sectionName]) sections[sectionName].classList.remove('hidden');
+        }
+        
+        // 不正なJSONを修正して解析する関数
+        function sanitizeAndParseJson(jsonString) {
+            const sanitizedString = jsonString.replace(/,(\s*[}\]])/g, '$1');
+            return JSON.parse(sanitizedString);
+        }
+
+        // 否定的な設問に下線を引く関数
+        function formatQuestionText(text) {
+            if (!text) return '問題文がありません';
+            return text.replace(/(ない|誤っている|含まれない|適切でない|異なる)/g, '<u>$1</u>');
+        }
+
+        // 選択肢をシャッフルする関数群
+        function shuffleOptions(question) {
+            if (!question.options || !question.answer) return question;
+            const originalCorrectAnswerText = question.options[question.answer];
+            if (!originalCorrectAnswerText) return question;
+
+            let entries = Object.entries(question.options);
+
+            for (let i = entries.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [entries[i], entries[j]] = [entries[j], entries[i]];
+            }
+
+            const newOptions = {};
+            let newAnswerKey = '';
+            const newKeys = ['A', 'B', 'C', 'D'];
+
+            for (let i = 0; i < entries.length; i++) {
+                const newKey = newKeys[i];
+                const originalText = entries[i][1];
+                newOptions[newKey] = originalText;
+                if (originalText === originalCorrectAnswerText) {
+                    newAnswerKey = newKey;
+                }
+            }
+
+            question.options = newOptions;
+            question.answer = newAnswerKey;
+
+            return question;
+        }
+
+        function shuffleAllQuestions(quizData) {
+            if (!Array.isArray(quizData)) return [];
+            return quizData.map(question => shuffleOptions(question));
+        }
+
+        async function callGenerativeAI(prompt) {
+            if (window.location.hostname.endsWith('netlify.app')) {
+                const functionUrl = '/.netlify/functions/generate-quiz';
+                const response = await fetch(functionUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                if (!response.ok) {
+                    const errorResult = await response.json().catch(() => ({ error: `サーバーがエラーを返しました (Status: ${response.status})`, details: response.statusText }));
+                    throw new Error(`サーバーとの通信に失敗しました: ${errorResult.error || errorResult.details}`);
+                }
+                const result = await response.json();
+                if (result.error) { throw new Error(`${result.error}`); }
+                if (result.text) { 
+                    return result.text;
+                } else {
+                    console.error("Unexpected response structure from function:", result);
+                    throw new Error("サーバーからの応答が予期した形式ではありません。");
+                }
+            } else {
+                const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // Canvas環境で自動的に提供
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API error: ${response.status} ${response.statusText}. Body: ${errorBody}`);
+                }
+                const result = await response.json();
+                if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    throw new Error("AIからの応答が予期した形式ではありません。");
+                }
+                return result.candidates[0].content.parts[0].text;
+            }
+        }
+
+        async function generateQuiz() {
+            if (state.isLoading) return;
+            state.isLoading = true;
+            showSection('loading');
+            sections.error.classList.add('hidden');
+
+            const category = elements.categorySelect.value;
+            let difficulty = elements.difficultySelect.value;
+            const numQuestions = elements.numQuestionsInput.value;
+
+            if (difficulty === "国家試験レベル") {
+                difficulty = "国家試験レベル（特に、複数の知識を統合する必要がある臨床応用問題や、鑑別が難しい高度な難問）";
+            }
+
+            const prompt = `
+# 命令書
+あなたは、東洋医学の教育コンテンツ作成を専門とする、極めて厳格かつ優秀なAIアシスタントです。
+以下の思考プロセスと絶対厳守ルールに従い、高品質な4択問題を生成してください。
+
+## 思考プロセス (あなたの思考手順)
+1.  **ステップ1: コンテンツの考案。** 指定されたテーマ、難易度、問題数に基づき、問題文、4つの選択肢（1つの正解と3つの巧妙な不正解）、そして詳細な解説（正解の根拠、不正解の分析、補足情報）を考案します。
+2.  **ステップ2: JSONの構築。** 考案した内容を、指定された厳格なJSON形式に沿って丁寧に組み立てます。コンマ、引用符、括弧の位置に細心の注意を払います。
+3.  **ステップ3: 徹底的な自己検証。** 出力する直前に、以下の【自己修正チェックリスト】の全項目を検証します。一つでも不備があれば、ステップ2に戻り修正します。これは最も重要なステップです。
+4.  **ステップ4: 最終出力。** 自己検証を完全にパスした場合に限り、完成したJSON配列を単一のjsonマークダウンコードブロックで囲んで出力します。
+
+## 自己修正チェックリスト (ステップ3で実行)
+* **[構文] JSONとして有効か？** 全てのキーと文字列の値はダブルクオーテーションで囲まれているか？コンマや括弧は正しいか？
+* **[構造] データ構造は正しいか？** \`"options"\` の値は \`{ "A": "...", "B": "...", ... }\` の形式の**単一オブジェクト**になっているか？
+* **[内容] コンテンツは完全かつ正確か？** 解答キー(\`"answer"\`)は正解選択肢と完全に一致しているか？解説の3要素は全て存在し、内容も充実しているか？
+
+## 生成タスク
+* **主要テーマ:** ${category}
+* **難易度:** ${difficulty}
+* **問題数:** ${numQuestions}
+
+## 厳格な出力形式
+\`\`\`json
+[
+  {
+    "question": "問題文をここに記述します。",
+    "options": {
+      "A": "選択肢A",
+      "B": "選択肢B",
+      "C": "選択肢C",
+      "D": "選択肢D"
+    },
+    "answer": "A",
+    "category": "${category}",
+    "difficulty": "${difficulty}",
+    "explanation": {
+      "correct_reason": "なぜこの選択肢が正解なのか、その根拠を具体的に説明します。",
+      "incorrect_analysis": {
+        "B": "選択肢Bがなぜ誤りなのかを説明します。",
+        "C": "選択肢Cがなぜ誤りなのかを説明します。",
+        "D": "選択肢Dがなぜ誤りなのかを説明します。"
+      },
+      "supplement": "関連知識や、より深い学習のための補足情報を記述します。"
+    }
+  }
+]
+\`\`\`
+`;
+
+            try {
+                const textResponse = await callGenerativeAI(prompt);
+                const jsonMatch = textResponse.match(/```json\n([\s\S]*?)\n```/) || textResponse.match(/\[[\s\S]*\]/);
+                if (!jsonMatch) throw new Error("生成されたデータから有効なJSONデータを見つけられませんでした。");
+                
+                const jsonToParse = jsonMatch[1] || jsonMatch[0];
+                const parsedJson = sanitizeAndParseJson(jsonToParse);
+
+                if (!Array.isArray(parsedJson) || parsedJson.length < numQuestions) {
+                    throw new Error(`AIが期待された数の問題を返しませんでした。(要求: ${numQuestions}, 取得: ${parsedJson.length})`);
+                }
+
+                state.quizData = shuffleAllQuestions(parsedJson);
+                startQuiz();
+
+            } catch (error) {
+                console.error('Error generating quiz:', error);
+                elements.errorMessage.textContent = `問題の生成に失敗しました: ${error.message}`;
+                showSection('error');
+            } finally {
+                state.isLoading = false;
+            }
+        }
+
+        function startQuiz() {
+            state.currentQuestionIndex = 0;
+            state.score = 0;
+            showSection('quiz');
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            updateProgress();
+            const question = state.quizData[state.currentQuestionIndex];
+            if (!question) {
+                elements.errorMessage.textContent = "次の問題のデータが見つかりませんでした。";
+                showSection('error');
+                return;
+            }
+            
+            const formattedQuestion = formatQuestionText(question.question);
+            let optionsHTML = '<p>選択肢の形式が正しくありません。</p>';
+
+            const validOptions = ['A', 'B', 'C', 'D'];
+            if (question.options && typeof question.options === 'object' && !Array.isArray(question.options)) {
+                optionsHTML = validOptions.map(key => {
+                    const value = question.options[key];
+                    if (typeof value === 'string') {
+                        return `
+                            <button class="quiz-option w-full text-left p-4 border-2 border-gray-200 rounded-lg bg-gray-50 hover:bg-teal-50 transition duration-200" data-option="${key}">
+                                <span class="font-bold mr-2">${key}.</span>
+                                <span>${value}</span>
+                            </button>
+                        `;
+                    }
+                    return ''; 
+                }).join('');
+            }
+            
+            elements.questionContainer.innerHTML = `
+                <div id="dispute-loading-overlay" class="hidden absolute top-0 left-0 right-0 bottom-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
+                    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600"></div>
+                </div>
+                <p class="text-sm text-gray-500 mb-2">${question.category || '一般'} / ${question.difficulty || '標準'}</p>
+                <p class="text-xl font-semibold mb-6">${formattedQuestion}</p>
+                <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${optionsHTML}
+                </div>
+            `;
+            
+            elements.questionContainer.querySelectorAll('.quiz-option').forEach(button => {
+                button.addEventListener('click', handleAnswer);
+            });
+            
+            elements.navigationButtons.innerHTML = '';
+        }
+        
+        function handleAnswer(event) {
+            const selectedButton = event.currentTarget;
+            const selectedOption = selectedButton.dataset.option;
+            const question = state.quizData[state.currentQuestionIndex];
+            const isCorrect = selectedOption === question.answer;
+
+            if (isCorrect) {
+                state.score++;
+                selectedButton.classList.add('correct');
+            } else {
+                selectedButton.classList.add('incorrect');
+                const correctButton = document.querySelector(`.quiz-option[data-option="${question.answer}"]`);
+                if(correctButton) correctButton.classList.add('correct');
+            }
+            updateProgress();
+            document.querySelectorAll('.quiz-option').forEach(button => button.classList.add('disabled'));
+            showNavigationButtons();
+        }
+
+        function showNavigationButtons() {
+            const isLastQuestion = state.currentQuestionIndex === state.quizData.length - 1;
+            const nextButtonText = isLastQuestion ? '結果を見る' : '次の問題へ';
+            
+            elements.navigationButtons.innerHTML = `
+                <div class="flex justify-center items-center gap-4 mb-6">
+                    <button id="show-explanation-btn" class="bg-blue-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-600 transition">解説を見る</button>
+                    <button id="next-question-btn" class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-teal-700 transition">${nextButtonText}</button>
+                    <button id="open-dispute-form-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition ml-8">不服申し立て</button>
+                </div>
+                <div id="dispute-section" class="hidden mt-6 border-t border-gray-200 pt-4">
+                    <p class="text-sm text-gray-600 mb-2">問題に誤りがあると思われる場合は、こちらからご指摘ください。</p>
+                    <textarea id="dispute-textarea" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 transition" placeholder="具体的な間違いの箇所や、正しいと思われる内容をご記入ください。"></textarea>
+                    <button id="submit-dispute-btn" class="mt-2 w-full bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
+                        申し立てを送信する
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('show-explanation-btn').addEventListener('click', openExplanationModal);
+            document.getElementById('next-question-btn').addEventListener('click', () => {
+                if (isLastQuestion) showResults();
+                else {
+                    state.currentQuestionIndex++;
+                    renderQuestion();
+                }
+            });
+            const openDisputeBtn = document.getElementById('open-dispute-form-btn');
+            openDisputeBtn.addEventListener('click', () => {
+                document.getElementById('dispute-section').classList.remove('hidden');
+                openDisputeBtn.classList.add('hidden');
+            });
+            document.getElementById('submit-dispute-btn').addEventListener('click', handleDispute);
+        }
+
+        async function handleDispute() {
+            const disputeText = document.getElementById('dispute-textarea').value;
+            if (!disputeText.trim()) {
+                alert('不服申し立ての内容を記入してください。');
+                return;
+            }
+            
+            const loadingOverlay = elements.questionContainer.querySelector('#dispute-loading-overlay');
+            if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+            const question = state.quizData[state.currentQuestionIndex];
+            const disputePrompt = `
+# 命令書
+あなたは、東洋医学の権威ある専門家であり、公平な判定員です。
+あるユーザーが、AIが生成したクイズ問題に対して「不服申し立て」を行いました。
+あなたのタスクは、提示された問題、正解、解説、そしてユーザーの主張を厳密に分析し、最終的な判定を下すことです。
+
+## 判定プロセス
+1.  **客観的分析:** まず、提示された【元のクイズデータ】を、標準的な東洋医学の教科書や古典に基づいて、学術的に再検証してください。
+2.  **主張の検討:** 次に、【ユーザーの主張】を真摯に検討し、その主張が妥当であるかどうかを判断してください。
+3.  **最終判定:** 上記の分析と検討に基づき、以下のいずれかの判定を下してください。
+    * **判定A:「元の問題は正しく、ユーザーの主張は誤りである」**
+    * **判定B:「ユーザーの主張が正しく、元の問題に誤りがあった」**
+    * **判定C:「両者に一理ある、または論点が複雑で別の解説が必要である」**
+4.  **判定理由の記述:** なぜその判定に至ったのか、専門的かつ論理的な根拠を、初心者にも分かりやすい言葉で丁寧に説明してください。元の問題に誤りがあった場合は、正しい情報と謝罪を明確に記述してください。
+
+---
+
+## 提出されたデータ
+
+### 【元のクイズデータ】
+\`\`\`json
+${JSON.stringify(question, null, 2)}
+\`\`\`
+
+### 【ユーザーの主張】
+"${disputeText}"
+
+---
+
+## あなたの最終的な回答（この形式で出力してください）
+
+### 【最終判定】
+（ここに判定A, B, Cのいずれかを記述）
+
+### 【判定理由と解説】
+（ここに判定に至った詳細な理由と、専門家としての最終的な解説を記述）
+`;
+            try {
+                const responseText = await callGenerativeAI(disputePrompt);
+                openDisputeResponseModal(responseText);
+            } catch (error) {
+                alert(`再判定中にエラーが発生しました: ${error.message}`);
+            } finally {
+                if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            }
+        }
+        
+        function updateProgress() {
+            elements.progressText.textContent = `問題 ${state.currentQuestionIndex + 1} / ${state.quizData.length}`;
+            elements.scoreText.textContent = `スコア: ${state.score}`;
+        }
+        
+        function showResults() {
+            const percentage = Math.round((state.score / state.quizData.length) * 100);
+            elements.finalScore.textContent = `${state.score} / ${state.quizData.length} 正解 (${percentage}%)`;
+            let message = '';
+            if (percentage === 100) message = '素晴らしい！完璧です！';
+            else if (percentage >= 80) message = '優秀です！その調子で頑張りましょう。';
+            else if (percentage >= 50) message = 'まずまずですね。復習でさらに知識を固めましょう。';
+            else message = 'お疲れ様でした。繰り返し挑戦して理解を深めましょう！';
+            elements.finalMessage.textContent = message;
+            showSection('results');
+        }
+
+        function restartQuiz() {
+            state.quizData = [];
+            state.currentQuestionIndex = 0;
+            state.score = 0;
+            showSection('settings');
+        }
+        
+        function openExplanationModal() {
+            const question = state.quizData[state.currentQuestionIndex];
+            if (!question || !question.explanation) {
+                elements.explanationContent.innerHTML = `<p>この問題の解説はありません。</p>`;
+            } else {
+                const { correct_reason, incorrect_analysis, supplement } = question.explanation;
+                let explanationHTML = '';
+                if (correct_reason) explanationHTML += `<div><h4 class="text-md font-bold text-green-700 mb-2">✔️ 正解の根拠</h4><p class="text-gray-700 leading-relaxed">${correct_reason}</p></div>`;
+                if (incorrect_analysis && typeof incorrect_analysis === 'object') {
+                    explanationHTML += `<div><h4 class="text-md font-bold text-red-700 mb-2">❌ 不正解の分析</h4><ul class="space-y-2">${Object.entries(incorrect_analysis).map(([key, value]) => `<li class="pl-4 border-l-2 border-gray-200"><strong class="font-semibold">${key}:</strong> ${value}</li>`).join('')}</ul></div>`;
+                }
+                if (supplement) explanationHTML += `<div><h4 class="text-md font-bold text-indigo-700 mb-2">💡 補足・発展学習</h4><p class="text-gray-700 leading-relaxed">${supplement}</p></div>`;
+                elements.explanationContent.innerHTML = explanationHTML || '<p>この問題の解説はありません。</p>';
+            }
+            elements.explanationModal.classList.remove('hidden');
+            elements.modalContent.classList.add('modal-enter');
+        }
+        
+        function closeExplanationModal() {
+            elements.modalContent.classList.add('modal-leave');
+            setTimeout(() => elements.explanationModal.classList.add('hidden'), 300);
+        }
+
+        function openDisputeResponseModal(responseText) {
+            elements.disputeResponseContent.innerHTML = responseText.replace(/\n/g, '<br>');
+            elements.disputeResponseModal.classList.remove('hidden');
+            elements.disputeModalContent.classList.add('modal-enter');
+        }
+        
+        function closeDisputeResponseModal() {
+            elements.disputeModalContent.classList.add('modal-leave');
+            setTimeout(() => elements.disputeResponseModal.classList.add('hidden'), 300);
+        }
+
+        // Service Workerの登録
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
