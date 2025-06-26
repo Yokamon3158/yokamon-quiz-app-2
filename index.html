@@ -212,10 +212,22 @@
                     body: JSON.stringify({ prompt: prompt })
                 });
 
+                // ★変更点：エラー応答のハンドリングを改善
                 if (!response.ok) {
-                    const errorResult = await response.json().catch(() => ({ error: `サーバーがエラーを返しました (Status: ${response.status})`, details: response.statusText }));
-                    throw new Error(`サーバーとの通信に失敗しました: ${errorResult.error || errorResult.details}`);
+                    const errorText = await response.text();
+                    let errorJson;
+                    try {
+                        // サーバーからのエラーがJSON形式か試す
+                        errorJson = JSON.parse(errorText);
+                    } catch (e) {
+                        // JSONでなければ、タイムアウト時のHTMLエラーページなどを想定
+                        console.error("Non-JSON error response from server:", errorText);
+                        throw new Error(`サーバーが予期せぬ形式で応答しました (Status: ${response.status})。タイムアウトの可能性があります。`);
+                    }
+                    // JSON形式のエラーメッセージをスローする
+                    throw new Error(errorJson.error || `サーバーがエラーを返しました (Status: ${response.status})`);
                 }
+
                 const result = await response.json();
                 if (result.error) { throw new Error(`${result.error}`); }
                 if (result.text) { 
@@ -328,7 +340,8 @@
 
             } catch (error) {
                 console.error('Error generating quiz:', error);
-                elements.errorMessage.textContent = `問題の生成に失敗しました: ${error.message}`;
+                // ★変更点：より詳細なエラーメッセージを表示
+                elements.errorMessage.textContent = `問題の生成に失敗しました: ${error.message || '予期せぬエラーが発生しました。'}`;
                 showSection('error');
             } finally {
                 state.isLoading = false;
@@ -571,3 +584,4 @@ ${JSON.stringify(question, null, 2)}
     </script>
 </body>
 </html>
+
