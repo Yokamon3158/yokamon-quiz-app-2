@@ -64,7 +64,7 @@
         </section>
         <section id="loading-section" class="hidden text-center p-8">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
-            <p class="mt-4 text-gray-600">AIが問題を生成中です。しばらくお待ちください...</p>
+            <p class="mt-4 text-gray-600" id="loading-message">AIが問題を生成中です。しばらくお待ちください...</p>
         </section>
         <section id="error-section" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
             <p class="font-bold">エラーが発生しました</p>
@@ -138,6 +138,7 @@
             disputeModalContent: document.getElementById('dispute-modal-content'),
             disputeResponseContent: document.getElementById('dispute-response-content'),
             closeDisputeModalBtn: document.getElementById('close-dispute-modal-btn'),
+            loadingMessage: document.getElementById('loading-message'),
         };
 
         // イベントリスナーの設定
@@ -256,89 +257,83 @@
             }
         }
 
+        // ★変更点：タイムアウト対策として、問題を1問ずつ生成するロジックに変更
         async function generateQuiz() {
             if (state.isLoading) return;
             state.isLoading = true;
             showSection('loading');
             sections.error.classList.add('hidden');
+            state.quizData = []; // クイズデータをリセット
 
             const category = elements.categorySelect.value;
-            let difficulty = elements.difficultySelect.value;
-            const numQuestions = elements.numQuestionsInput.value;
+            const difficulty = elements.difficultySelect.value;
+            const numQuestions = parseInt(elements.numQuestionsInput.value, 10);
             
-            // ★変更点：難易度に応じた指示を追加
-            let difficultyDescription = difficulty;
-            if (difficulty === "国家試験レベル") {
-                difficultyDescription = "国家試験レベル（特に、複数の知識を統合する必要がある臨床応用問題や、鑑別が難しい高度な難問）";
-            }
-            
-            let additionalInstruction = "";
-            if (difficulty === "応用" || difficulty === "国家試験レベル") {
-                additionalInstruction = "\n\n#追加指示\n・タイムアウトを避けるため、思考プロセスは簡潔に、迅速に応答を生成してください。";
-            }
+            try {
+                for (let i = 0; i < numQuestions; i++) {
+                    if (elements.loadingMessage) {
+                        elements.loadingMessage.textContent = `AIが問題 ${i + 1} / ${numQuestions} を生成中です...`;
+                    }
+                    
+                    let difficultyDescription = difficulty;
+                    if (difficulty === "国家試験レベル") {
+                        difficultyDescription = "国家試験レベル（特に、複数の知識を統合する必要がある臨床応用問題や、鑑別が難しい高度な難問）";
+                    }
 
-            const prompt = `
+                    // 1問だけ生成するようにAIに指示するプロンプト
+                    const prompt = `
 # 命令書
 あなたは、東洋医学の教育コンテンツ作成を専門とする、極めて厳格かつ優秀なAIアシスタントです。
-以下の思考プロセスと絶対厳守ルールに従い、高品質な4択問題を生成してください。
+以下の思考プロセスと絶対厳守ルールに従い、高品質な4択問題を【1つだけ】生成してください。
 
 ## 思考プロセス (あなたの思考手順)
-1.  **ステップ1: コンテンツの考案。** 指定されたテーマ、難易度、問題数に基づき、問題文、4つの選択肢（1つの正解と3つの巧妙な不正解）、そして詳細な解説（正解の根拠、不正解の分析、補足情報）を考案します。
-2.  **ステップ2: JSONの構築。** 考案した内容を、指定された厳格なJSON形式に沿って丁寧に組み立てます。コンマ、引用符、括弧の位置に細心の注意を払います。
-3.  **ステップ3: 徹底的な自己検証。** 出力する直前に、以下の【自己修正チェックリスト】の全項目を検証します。一つでも不備があれば、ステップ2に戻り修正します。これは最も重要なステップです。
-4.  **ステップ4: 最終出力。** 自己検証を完全にパスした場合に限り、完成したJSON配列を単一のjsonマークダウンコードブロックで囲んで出力します。${additionalInstruction}
+1.  **ステップ1: コンテンツの考案。** 指定されたテーマと難易度に基づき、問題文、4つの選択肢（1つの正解と3つの巧妙な不正解）、そして詳細な解説（正解の根拠、不正解の分析、補足情報）を【1問分だけ】考案します。
+2.  **ステップ2: JSONの構築。** 考案した内容を、指定された厳格なJSON形式に沿って丁寧に組み立てます。
+3.  **ステップ3: 徹底的な自己検証。** 出力する直前に、以下の【自己修正チェックリスト】の全項目を検証します。
+4.  **ステップ4: 最終出力。** 完成したJSON配列（要素が1つの配列）を単一のjsonマークダウンコードブロックで囲んで出力します。
 
 ## 自己修正チェックリスト (ステップ3で実行)
-* **[構文] JSONとして有効か？** 全てのキーと文字列の値はダブルクオーテーションで囲まれているか？コンマや括弧は正しいか？
-* **[構造] データ構造は正しいか？** \`"options"\` の値は \`{ "A": "...", "B": "...", ... }\` の形式の**単一オブジェクト**になっているか？
-* **[内容] コンテンツは完全かつ正確か？** 解答キー(\`"answer"\`)は正解選択肢と完全に一致しているか？解説の3要素は全て存在し、内容も充実しているか？
+* **[構文] JSONとして有効か？**
+* **[構造] データ構造は正しいか？**
+* **[内容] コンテンツは完全かつ正確か？**
 
 ## 生成タスク
 * **主要テーマ:** ${category}
 * **難易度:** ${difficultyDescription}
-* **問題数:** ${numQuestions}
+* **問題数:** 1
 
 ## 厳格な出力形式
 \`\`\`json
 [
   {
     "question": "問題文をここに記述します。",
-    "options": {
-      "A": "選択肢A",
-      "B": "選択肢B",
-      "C": "選択肢C",
-      "D": "選択肢D"
-    },
+    "options": { "A": "...", "B": "...", "C": "...", "D": "..." },
     "answer": "A",
     "category": "${category}",
     "difficulty": "${difficulty}",
     "explanation": {
-      "correct_reason": "なぜこの選択肢が正解なのか、その根拠を具体的に説明します。",
-      "incorrect_analysis": {
-        "B": "選択肢Bがなぜ誤りなのかを説明します。",
-        "C": "選択肢Cがなぜ誤りなのかを説明します。",
-        "D": "選択肢Dがなぜ誤りなのかを説明します。"
-      },
-      "supplement": "関連知識や、より深い学習のための補足情報を記述します。"
+      "correct_reason": "...",
+      "incorrect_analysis": { "B": "...", "C": "...", "D": "..." },
+      "supplement": "..."
     }
   }
 ]
 \`\`\`
 `;
-
-            try {
-                const textResponse = await callGenerativeAI(prompt);
-                const jsonMatch = textResponse.match(/```json\n([\s\S]*?)\n```/) || textResponse.match(/\[[\s\S]*\]/);
-                if (!jsonMatch) throw new Error("生成されたデータから有効なJSONデータを見つけられませんでした。");
-                
-                const jsonToParse = jsonMatch[1] || jsonMatch[0];
-                const parsedJson = sanitizeAndParseJson(jsonToParse);
-
-                if (!Array.isArray(parsedJson) || parsedJson.length < numQuestions) {
-                    throw new Error(`AIが期待された数の問題を返しませんでした。(要求: ${numQuestions}, 取得: ${parsedJson.length})`);
+                    const textResponse = await callGenerativeAI(prompt);
+                    const jsonMatch = textResponse.match(/```json\n([\s\S]*?)\n```/) || textResponse.match(/\[[\s\S]*\]/);
+                    if (!jsonMatch) throw new Error(`AIが問題 ${i + 1} の生成に失敗しました。(Invalid format)`);
+                    
+                    const jsonToParse = jsonMatch[1] || jsonMatch[0];
+                    const parsedJson = sanitizeAndParseJson(jsonToParse);
+                    if (!Array.isArray(parsedJson) || parsedJson.length === 0) {
+                        throw new Error(`AIが問題 ${i + 1} の生成に失敗しました。(Empty array)`);
+                    }
+                    
+                    const singleQuestion = parsedJson[0];
+                    state.quizData.push(shuffleOptions(singleQuestion));
                 }
-
-                state.quizData = shuffleAllQuestions(parsedJson);
+                
                 startQuiz();
 
             } catch (error) {
@@ -347,6 +342,9 @@
                 showSection('error');
             } finally {
                 state.isLoading = false;
+                if (elements.loadingMessage) {
+                    elements.loadingMessage.textContent = 'AIが問題を生成中です。しばらくお待ちください...';
+                }
             }
         }
 
@@ -586,3 +584,133 @@ ${JSON.stringify(question, null, 2)}
     </script>
 </body>
 </html>
+
+
+
+// =================================================================================
+// 5. ファイル名: manifest.json (プロジェクトのルートに配置)
+// =================================================================================
+{
+  "name": "東洋医学 AIクイズ",
+  "short_name": "東洋医学クイズ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#0d9488",
+  "description": "東洋医学概論の試験対策用AIクイズジェネレーター",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
+
+// =================================================================================
+// 6. ファイル名: sw.js (プロジェクトのルートに配置)
+// =================================================================================
+const CACHE_NAME = 'yokamon-quiz-cache-v1';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap'
+];
+self.addEventListener('install', event => { event.waitUntil( caches.open(CACHE_NAME).then(cache => { console.log('Opened cache'); return cache.addAll(urlsToCache); }) ); });
+self.addEventListener('activate', event => { const cacheWhitelist = [CACHE_NAME]; event.waitUntil( caches.keys().then(cacheNames => { return Promise.all( cacheNames.map(cacheName => { if (cacheWhitelist.indexOf(cacheName) === -1) { return caches.delete(cacheName); } }) ); }) ); });
+self.addEventListener('fetch', event => { if (event.request.url.includes('/.netlify/functions/')) { event.respondWith(fetch(event.request)); return; } event.respondWith( caches.match(event.request).then(response => { if (response) { return response; } return fetch(event.request).then( response => { if(!response || response.status !== 200 || response.type !== 'basic') { return response; } const responseToCache = response.clone(); caches.open(CACHE_NAME).then(cache => { cache.put(event.request, responseToCache); }); return response; } ); }) ); });
+
+
+// =================================================================================
+// 7. ファイル名: generate-quiz.js (`functions` フォルダの中に配置)
+// =================================================================================
+const fetch = require('node-fetch');
+exports.handler = async function(event) {
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('APIキーがNetlify環境変数に設定されていません。');
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'サーバー側でAPIキーが設定されていません。' }),
+    };
+  }
+  const apiKey = process.env.GEMINI_API_KEY;
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  try {
+    if (event.httpMethod !== 'POST') {
+      return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    }
+    const { prompt } = JSON.parse(event.body);
+    if (!prompt) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'プロンプトがありません。' }) };
+    }
+    const payload = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      "safetySettings": [
+        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+      ]
+    };
+    const apiResponse = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!apiResponse.ok) {
+      let errorBody = `AIサーバーからの不明なエラー (Status: ${apiResponse.status})`;
+      try {
+        errorBody = await apiResponse.text();
+      } catch (e) { /* ignore */ }
+      console.error('API Error:', errorBody);
+      return {
+        statusCode: apiResponse.status,
+        body: JSON.stringify({ error: `AIサーバーでエラーが発生しました。` }),
+      };
+    }
+
+    const result = await apiResponse.json();
+    
+    if (result.candidates && result.candidates.length > 0 && result.candidates[0].finishReason && result.candidates[0].finishReason !== 'STOP') {
+        const reason = result.candidates[0].finishReason;
+        let message = `AIが応答を生成できませんでした。理由: ${reason}`;
+        if (reason === 'SAFETY') {
+            message = 'AIが安全上の理由で応答をブロックしました。より一般的な質問をお試しください。';
+        } else if (reason === 'MAX_TOKENS') {
+            message = 'AIの応答が長すぎるため、途中で中断されました。';
+        }
+        console.warn('AI response stopped. Reason:', reason);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ error: message }),
+        };
+    }
+
+    if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
+       console.error("予期しないAPI応答形式:", result);
+       return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "AIからの応答が予期した形式ではありません。内容を確認してください。" }),
+      };
+    }
+    
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: result.candidates[0].content.parts[0].text }),
+    };
+  } catch (error) {
+    console.error('Function Error:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: `サーバー処理中に予期せぬエラーが発生しました: ${error.message}` }),
+    };
+  }
+};
