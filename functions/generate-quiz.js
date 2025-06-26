@@ -36,14 +36,33 @@ exports.handler = async function(event) {
         body: JSON.stringify({ error: `AIサーバーでエラーが発生しました。` }),
       };
     }
+
     const result = await apiResponse.json();
+    
+    // ★変更点：AIの応答がブロックされた場合の詳細なエラーハンドリングを追加
+    if (result.candidates && result.candidates.length > 0 && result.candidates[0].finishReason && result.candidates[0].finishReason !== 'STOP') {
+        const reason = result.candidates[0].finishReason;
+        let message = `AIが応答を生成できませんでした。理由: ${reason}`;
+        if (reason === 'SAFETY') {
+            message = 'AIが安全上の理由で応答をブロックしました。より一般的な質問をお試しください。';
+        } else if (reason === 'MAX_TOKENS') {
+            message = 'AIの応答が長すぎるため、途中で中断されました。';
+        }
+        console.warn('AI response stopped. Reason:', reason);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ error: message }),
+        };
+    }
+
     if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
        console.error("予期しないAPI応答形式:", result);
        return {
         statusCode: 500,
-        body: JSON.stringify({ error: "AIからの応答が予期した形式ではありません。" }),
+        body: JSON.stringify({ error: "AIからの応答が予期した形式ではありません。内容を確認してください。" }),
       };
     }
+    
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
