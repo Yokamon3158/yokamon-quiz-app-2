@@ -212,19 +212,15 @@
                     body: JSON.stringify({ prompt: prompt })
                 });
 
-                // ★変更点：エラー応答のハンドリングを改善
                 if (!response.ok) {
                     const errorText = await response.text();
                     let errorJson;
                     try {
-                        // サーバーからのエラーがJSON形式か試す
                         errorJson = JSON.parse(errorText);
                     } catch (e) {
-                        // JSONでなければ、タイムアウト時のHTMLエラーページなどを想定
                         console.error("Non-JSON error response from server:", errorText);
                         throw new Error(`サーバーが予期せぬ形式で応答しました (Status: ${response.status})。タイムアウトの可能性があります。`);
                     }
-                    // JSON形式のエラーメッセージをスローする
                     throw new Error(errorJson.error || `サーバーがエラーを返しました (Status: ${response.status})`);
                 }
 
@@ -269,9 +265,16 @@
             const category = elements.categorySelect.value;
             let difficulty = elements.difficultySelect.value;
             const numQuestions = elements.numQuestionsInput.value;
-
+            
+            // ★変更点：難易度に応じた指示を追加
+            let difficultyDescription = difficulty;
             if (difficulty === "国家試験レベル") {
-                difficulty = "国家試験レベル（特に、複数の知識を統合する必要がある臨床応用問題や、鑑別が難しい高度な難問）";
+                difficultyDescription = "国家試験レベル（特に、複数の知識を統合する必要がある臨床応用問題や、鑑別が難しい高度な難問）";
+            }
+            
+            let additionalInstruction = "";
+            if (difficulty === "応用" || difficulty === "国家試験レベル") {
+                additionalInstruction = "\n\n#追加指示\n・タイムアウトを避けるため、思考プロセスは簡潔に、迅速に応答を生成してください。";
             }
 
             const prompt = `
@@ -283,7 +286,7 @@
 1.  **ステップ1: コンテンツの考案。** 指定されたテーマ、難易度、問題数に基づき、問題文、4つの選択肢（1つの正解と3つの巧妙な不正解）、そして詳細な解説（正解の根拠、不正解の分析、補足情報）を考案します。
 2.  **ステップ2: JSONの構築。** 考案した内容を、指定された厳格なJSON形式に沿って丁寧に組み立てます。コンマ、引用符、括弧の位置に細心の注意を払います。
 3.  **ステップ3: 徹底的な自己検証。** 出力する直前に、以下の【自己修正チェックリスト】の全項目を検証します。一つでも不備があれば、ステップ2に戻り修正します。これは最も重要なステップです。
-4.  **ステップ4: 最終出力。** 自己検証を完全にパスした場合に限り、完成したJSON配列を単一のjsonマークダウンコードブロックで囲んで出力します。
+4.  **ステップ4: 最終出力。** 自己検証を完全にパスした場合に限り、完成したJSON配列を単一のjsonマークダウンコードブロックで囲んで出力します。${additionalInstruction}
 
 ## 自己修正チェックリスト (ステップ3で実行)
 * **[構文] JSONとして有効か？** 全てのキーと文字列の値はダブルクオーテーションで囲まれているか？コンマや括弧は正しいか？
@@ -292,7 +295,7 @@
 
 ## 生成タスク
 * **主要テーマ:** ${category}
-* **難易度:** ${difficulty}
+* **難易度:** ${difficultyDescription}
 * **問題数:** ${numQuestions}
 
 ## 厳格な出力形式
@@ -340,7 +343,6 @@
 
             } catch (error) {
                 console.error('Error generating quiz:', error);
-                // ★変更点：より詳細なエラーメッセージを表示
                 elements.errorMessage.textContent = `問題の生成に失敗しました: ${error.message || '予期せぬエラーが発生しました。'}`;
                 showSection('error');
             } finally {
@@ -584,4 +586,3 @@ ${JSON.stringify(question, null, 2)}
     </script>
 </body>
 </html>
-
